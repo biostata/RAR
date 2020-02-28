@@ -1,0 +1,335 @@
+---
+title: "Easy Data Analysis with RAR"
+author: "Pablo Gomez"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+Are you tired of being humiliated by all the wealthy SAS and STATA users that tells you that the R output is ugly and confusing? Do you wanna do some data analysis without having to become a computer freak (like me)?...Well fear no more my friend RAR is here for you.   
+The RAR package was developed with the intention to make data analysis with R more comprehensive and easier to prepare the results for reporting and visualization. The functions provided are can be used directly in the R console, but in order to unlock the full potential of RAR rmarkdown is suggested. The function `Pable()`, which is based on the `kable` and `kableExtra` libraries, formats the data in tables ready to present in your next poster, report, presentation or even on your paper.   
+In this vignette we use an example data set from the Pokemon database (Yeah you read well, I'm going full geek) provided by Asier Lopez Zorrilla (https://www.kaggle.com/alopez247/pokemon).     
+  
+Lets go ahead and load the package and the data.  
+```{r}
+library(RAR)
+library(magrittr)
+library(kableExtra)
+library(knitr)
+data("Pokemon")
+#Define the figure size for all the plots
+knitr::opts_chunk$set(fig.width=7, fig.height=6) 
+```
+For creating nice tables we can use the function `Pable`, which escentially is a function that combines functions from the packages knitr and kable. You can just print the output of the tables in a data.frame format, butt adding Pable will make a nice formatting for kniting the document.    
+
+# Univariate Analisis.
+
+First we can start with the visualization of the data, we will use the variable `Catch_rate` for this. The objective of this functions is to check the distribution of the data.  
+
+
+
+```{r fig.height=6, fig.show='hold', fig.width=7}
+PROC.plot(Pokemon$Catch_Rate)
+```
+
+
+Next we can see the numbers, the function`PROC.univar()` shows a table with some summary statistics and at the end (Columns 10 & 11) shows the Test statistic and p-value for the normality test.   
+
+```{r message=FALSE, warning=FALSE}
+Pable(PROC.univar(Pokemon$Catch_Rate))
+```
+
+From this output we can observe that the variable does not have a normal distribution.  
+For this variables we can also test if a transformation helps to achieve normality of the variable.  
+To visualize the distribution of the variable transformed we can use the function`PROC.plot.t()`
+
+```{r fig.height=6, fig.show='hold', fig.width=7}
+PROC.plot.t(Pokemon$Catch_Rate)
+```
+
+
+Then, if we want a more detailed description of the transformation we can use the funtion `PROC.transformations()`, which provides a table with the descriptive statistics of the transformation.  
+
+```{r warning=FALSE}
+Pable(PROC.transformations(Pokemon$Catch_Rate))
+```
+
+
+
+The function `PROC.univar()` also can be used for categorical or binary variables. THis function will provide the frequency, the proportion, cumulative frequency and cumulative proportion of the variable and at the end the number of NAs.  
+
+```{r warning=FALSE}
+Pable(PROC.univar(Pokemon$Body_Style))
+```
+
+Sometimes the categorical variable we want can be confounded with continous, to address this problem we can simply specify R that this variable is a categorical variable:
+
+```{r warning=FALSE}
+Pable(PROC.univar(Pokemon$Generation,is.categorical = T))
+```
+
+RAR also allows to perform univariate analysis for several variables at once, to do this we can use the function `PROC.univar.L` which will provide a table with analsysis for several variables. THis function is better for analysisn continous variables at once, but for categorical can give an output a little bit messy. 
+The function has two arguments, we need to provide a string vector with the name of the variables and the name of the data.
+
+```{r warning=FALSE}
+# specify in a string vector the variables we want for the univariate analysis:
+variables <- c("HP","Attack","Defense","Sp_Atk","Sp_Def","Speed","Pr_Male","Catch_Rate")
+Pable(PROC.univar.L(variables,data = Pokemon))
+```
+
+
+# Bivariate analysis
+
+```{r include=FALSE}
+PROC.Bivar.Plot <- function(Exposure,Outcome,Data,alpha=0.05){
+  #Get the data (easier for printing names purposes)
+  E <- Data[,Exposure]
+  O <- Data[,Outcome]
+  if(class(E)=="factor"& (class(O)=="numeric" | class(O)=="integer")){
+
+    if (length(levels(E))<=2) {
+      #get T-test:
+      t <- t.test(O~E)
+      #Boxplot:
+      boxplot(O~E,col="light blue",border="darkblue",main= paste("Distribution of ",Exposure," by ",Outcome),xlab=Outcome,ylab=Exposure)
+      #Add T-test and p-value
+      p <- t$p.value
+      TS <- t$statistic
+      s <- ifelse(p>alpha,"","*")
+      mtext(paste("p-val:",round(p,4),s,', ',"T-stat:",round(TS,4)),side=1,font=2,line=2,cex=0.8)
+    }
+    else if (length(levels(E))>=3){
+      #get ANOVA:
+      AOV <- aov(O~E)
+      AOVs <- summary(AOV)
+      #Boxplot:
+      boxplot(O~E,col="light blue",border="darkblue",main= paste("Distribution of ",Exposure," by ",Outcome),xlab=Outcome,ylab=Exposure)
+      #Add T-test and p-value
+      p <- AOVs[[1]][[1,"Pr(>F)"]]
+      TS <- AOVs[[1]][[1,"F value"]]
+      s <- ifelse(p>alpha,"","*")
+      mtext(paste("p-val:",round(p,4),s,', ',"T-stat:",round(TS,4)),side=1,font=2,line=2,cex=0.8)
+    }
+  }
+
+  else if((class(E)=="numeric" |class(E)=="integer") & (class(O)=="numeric" |class(O)=="integer")){
+    #correlation test:
+    Ct <- cor.test(E,O)
+    Ce <- Ct$estimate
+    p <- Ct$p.value
+    #Scatterplot:
+    plot(O~E,col="darkblue",main=paste("Distribution of ",Exposure," by ",Outcome),xlab=Outcome,ylab=Exposure)
+    mtext(paste("p-val:",round(p,4),', ',"Pearson correltion:",round(Ce,4)),side=1,font=2,line=2,cex=0.8)
+  }
+
+}
+```
+
+
+
+RAR has functions for visualizing the association of two variables. The `PROC.Bivar.Plot()` function provides visualization according to the type of variables, a test statistic and a p-value to test association between variables.
+
+## Example 1: Two continous variables.
+
+```{r}
+PROC.Bivar.Plot(Exposure = "Attack",Outcome = "Defense",Data=Pokemon)
+```
+  
+The plot provides the p-value for a correlation test and the correlation coefficient. The variables must be either numeric or integer.  
+
+
+## Example 2: Binary vs Continous
+
+```{r}
+PROC.Bivar.Plot(Exposure = "isLegendary",Outcome = "Catch_Rate",Data = Pokemon)
+```
+  
+The plot provides the p-value for a T-test and the T-statistic. The first variable (or "Exposure) must be Binary and the second variable ("Outcome") must be continous.  
+
+
+## Example 3: Categorical (>2 levels) vs Continous
+```{r}
+PROC.Bivar.Plot(Exposure = "Egg_Group_2",Outcome = "Catch_Rate",Data = Pokemon)
+```
+  
+The plot provides the p-value for a ANOVA and the T-statistic. The first variable (or "Exposure) must be a factor with >2 levels and the second variable ("Outcome") must be continous.  
+  
+  
+This function will not work when trying to compare a categorical vs a categorical variable.  
+  
+
+## Comparing categorical vs categorical variables
+
+To compare cateorical variables we can use the function `PROC.ChisqTbl` which will provide a table of the variables compared to a Outcome of interest.  
+We have to provide a vector of the names of the variables that we want to analyze, the name of the outcome of interest, the name of the data that contains the variables and we have the option to specify the $\alpha$ level.  
+```{r include=FALSE}
+PROC.ChisqTbl <- function(variables,outcome,Data,alpha=0.05){
+  o <- Data[,outcome]
+  df <- cbind("Variable","T","p","smallCells")
+  for(i in 1:length(variables)){
+    v <- Data[,variables[i]]
+
+
+    tbl <- xtabs(~o+v,Data)
+    ch <- chisq.test(tbl)
+    TS <- round(ch$statistic,4)
+    pval <- round(ch$p.value,4)
+    variable <- variables[i]
+    s <- ifelse(pval<=alpha,"*"," ")
+    pval <-paste(pval,s)
+    #small number cells:
+    SmallCells <- ifelse(length(which(as.vector(tbl)<=6))>=1,"+","-")
+
+    d <- cbind(variable,TS,pval,SmallCells)
+
+    df <- rbind(df,d)
+  }
+  return(data.frame(df[-1,],row.names = NULL))
+}
+```
+
+```{r warning=FALSE}
+variables <- c("hasGender","hasMegaEvolution","Color","Body_Style","Type_2")
+Pable(PROC.ChisqTbl(variables,"isLegendary",Pokemon))
+```
+
+The table also indicates if the variable has small cell sizes, which is an idicator that the variable should be examined carefully to obtain a more meaningful result.  
+
+## Multiple bivariate regression with the exposure of interest
+
+Finally, we can obtain a table that will provide an estimate, confidence intervals, and a p-value for the association between each variable with the exposure of interest using regression analysis.  
+We have to provide the name of the variables, the outcome of interest, the data and we can specify the $\alpha$ to use.  
+
+```{r include=F}
+# Second version of the function:
+PROC.BivariateRegression <- function(variables,outcome,data,alpha = 0.05, family = "gaussian", Offset= Offset){
+  o <- data[,outcome]
+  df <- c("variable","Estimate","LCI","UCI","StdError","T.S","pval")
+  
+  if(family == "gaussian"){
+    for (i in 1:length(variables)) {
+      v <-  data[,variables[i]]
+      reg <- lm(o~v,data=data)
+      regs <- summary(reg)
+
+      if (class(v)=="factor"){
+        lvls <- levels(v)
+        Variable <- paste(variables[i],lvls[-1])
+        Estimate <- round(regs$coefficients[2:length(lvls),1],2)
+        StdError <- round(regs$coefficients[2:length(lvls),2],2)
+        CI <- round(confint(reg),2)
+        LCI <- CI[2:length(lvls),1]
+        UCI <- CI[2:length(lvls),2]
+        Tval <- round(regs$coefficients[2:length(lvls),3],2)
+        pval <- round(regs$coefficients[2:length(lvls),4],2)
+        s <- ifelse(pval<=alpha,"*"," ")
+        pval <-paste(pval,s)
+      }
+      else if(class(v)=="numeric"|class(v)=="integer"){
+        Variable <- paste(variables[i])
+        Estimate <- round(regs$coefficients[2,1],2)
+        StdError <- round(regs$coefficients[2,2],2)
+        CI <- round(confint(reg),2)
+        LCI <- CI[2,1]
+        UCI <- CI[2,2]
+        Tval <- round(regs$coefficients[2,3],2)
+        pval <- round(regs$coefficients[2,4],2)
+        s <- ifelse(pval<=alpha,"*"," ")
+        pval <-paste(pval,s)
+      }
+
+      d <- cbind(Variable,Estimate,LCI,UCI,StdError,Tval,pval)
+      # return(data.frame(Estimate,StdError,Tval,pval,r2))
+      df <- rbind(df,d)
+    }
+  }
+
+  else if(family == "binomial"){
+    for (i in 1:length(variables)) {
+      v <-  data[,variables[i]]
+      reg <- glm(o~data[,variables[i]],data=data,family = binomial())
+      regs <- summary(reg)
+
+      if (class(v)=="factor"){
+        lvls <- levels(v)
+        Variable <- paste(variables[i],lvls[-1])
+        Estimate <- round(regs$coefficients[2:length(lvls),1],2)
+        StdError <- round(regs$coefficients[2:length(lvls),2],2)
+        CI <- round(confint(reg),2)
+        LCI <- CI[2:length(lvls),1]
+        UCI <- CI[2:length(lvls),2]
+        Tval <- round(regs$coefficients[2:length(lvls),3],2)
+        pval <- round(regs$coefficients[2:length(lvls),4],2)
+        s <- ifelse(pval<=alpha,"*"," ")
+        pval <-paste(pval,s)
+      }
+      else if(class(v)=="numeric"|class(v)=="integer"){
+        Variable <- paste(variables[i])
+        Estimate <- round(regs$coefficients[2,1],2)
+        StdError <- round(regs$coefficients[2,2],2)
+        CI <- round(confint(reg),2)
+        LCI <- CI[2,1]
+        UCI <- CI[2,2]
+        Tval <- round(regs$coefficients[2,3],2)
+        pval <- round(regs$coefficients[2,4],2)
+        s <- ifelse(pval<=alpha,"*"," ")
+        pval <-paste(pval,s)
+      }
+      d <- cbind(Variable,Estimate,LCI,UCI,StdError,Tval,pval)
+      # return(data.frame(Estimate,StdError,Tval,pval,r2))
+      df <- rbind(df,d)
+    }
+  }
+  
+  else if(family == "poisson"){
+    Of <- data[,Offset]
+    for (i in 1:length(variables)) {
+      v <-  data[,variables[i]]
+      reg <- glm(o~data[,variables[i]] + offset(log(Of)),data=data,family = poisson)
+      regs <- summary(reg)
+
+      if (class(v)=="factor"){
+        lvls <- levels(v)
+        Variable <- paste(variables[i],lvls[-1])
+        Estimate <- round(regs$coefficients[2:length(lvls),1],2)
+        StdError <- round(regs$coefficients[2:length(lvls),2],2)
+        CI <- round(confint(reg),2)
+        LCI <- CI[2:length(lvls),1]
+        UCI <- CI[2:length(lvls),2]
+        Tval <- round(regs$coefficients[2:length(lvls),3],2)
+        pval <- round(regs$coefficients[2:length(lvls),4],2)
+        s <- ifelse(pval<=alpha,"*"," ")
+        pval <-paste(pval,s)
+      }
+      else if(class(v)=="numeric"|class(v)=="integer"){
+        Variable <- paste(variables[i])
+        Estimate <- round(regs$coefficients[2,1],2)
+        StdError <- round(regs$coefficients[2,2],2)
+        CI <- round(confint(reg),2)
+        LCI <- CI[2,1]
+        UCI <- CI[2,2]
+        Tval <- round(regs$coefficients[2,3],2)
+        pval <- round(regs$coefficients[2,4],2)
+        s <- ifelse(pval<=alpha,"*"," ")
+        pval <-paste(pval,s)
+      }
+      d <- cbind(Variable,Estimate,LCI,UCI,StdError,Tval,pval)
+      # return(data.frame(Estimate,StdError,Tval,pval,r2))
+      df <- rbind(df,d)
+    }
+  }
+    
+  return(data.frame(df,row.names = NULL)[-1,])
+}
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# Lets select some of the variables that could make sense using indexing:
+variables <- colnames(Pokemon)[c(5:11,13,15,16,20,22)]
+Pable(PROC.BivariateRegression(variables = variables,outcome = "hasMegaEvolution",data = Pokemon, family = "binomial" ))
+```
+

@@ -1,0 +1,23 @@
+Package: RAR
+Type: Package
+Title: Pretty Data Analysis
+Version: 0.1.0
+Author: person("Pablo","Gomez",email="josepablo9108@gmail.com",role = c("aut","cre"))
+Maintainer: The package maintainer <yourself@somewhere.net>
+Description: Tools for easier and prettier data analysis.
+    Combines graphics and tables to obtain output ready to report.
+    Package aimed to help epidemiologyst or other profesionists using 
+    data analysis, mostly regression.
+License: GLP-2
+Encoding: UTF-8
+LazyData: true
+Imports:
+  moments,
+  knitr,
+  kableExtra,
+  dplyr,
+  magrittr
+VignetteBuilder: knitr
+Suggests: 
+    rmarkdown
+RoxygenNote: 6.1.0.9000
